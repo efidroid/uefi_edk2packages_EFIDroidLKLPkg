@@ -1,0 +1,11 @@
+[Defines]
+  DEC_SPECIFICATION              = 0x00010005
+  PACKAGE_NAME                   = UEFIThreads
+  PACKAGE_GUID                   = a7b42e25-b61d-4cdd-a622-0a0b8a23cdd5
+  PACKAGE_VERSION                = 0.1
+
+[Includes]
+  Include
+
+[Protocols]
+  gUefiThreadProtocolGuid = { 0xba4d789a, 0x9b1a, 0x473d, { 0x9a, 0x88, 0x74, 0xee, 0x6f, 0xd9, 0x02, 0xbf } }

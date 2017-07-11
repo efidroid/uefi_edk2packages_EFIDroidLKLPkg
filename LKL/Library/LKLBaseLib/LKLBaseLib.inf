@@ -1,0 +1,22 @@
+[Defines]
+  INF_VERSION       = 0x00010006
+  BASE_NAME         = LKLBaseLib
+  FILE_GUID         = 3dd0502e-69a8-4c3a-b51b-c968117a5d1e
+  MODULE_TYPE       = BASE
+  VERSION_STRING    = 0.1
+  LIBRARY_CLASS     = LKLBaseLib
+  CONSTRUCTOR       = LKLBaseLibConstructor
+
+[Sources]
+  ProtocolWrappers.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  EFIDroidPkg/Library/MicroLibC/MicroLibC.dec
+  EFIDroidLKLPkg/LKL/LKL.dec
+
+[Protocols]
+  gUefiLKLProtocolGuid
+
+[Depex]
+  gUefiLKLProtocolGuid

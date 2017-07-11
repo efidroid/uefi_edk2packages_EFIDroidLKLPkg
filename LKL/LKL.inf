@@ -1,0 +1,42 @@
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = LKL
+  FILE_GUID                      = 242ab525-8866-4bf9-8640-a31f27071b07
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+
+  ENTRY_POINT                    = LKLEntryPoint
+  UNLOAD_IMAGE                   = LKLUnload
+
+[Sources]
+  LKL.c
+  EFIDroidLKL/lib/lkl.prebuilt
+  UefiHost.c
+
+  EFIDroidLKLPriv/lib/iomem.c
+  EFIDroidLKLPriv/lib/utils.c
+  EFIDroidLKLPriv/lib/fs.c
+  EFIDroidLKLPriv/lib/virtio.c
+  EFIDroidLKLPriv/lib/virtio_blk.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  EFIDroidPkg/EFIDroidPkg.dec
+  EFIDroidLKLPkg/UEFIThreads/UEFIThreads.dec
+  EFIDroidPkg/Library/MicroLibC/MicroLibC.dec
+  EFIDroidLKLPkg/LKL/LKL.dec
+
+[LibraryClasses]
+  UefiBootServicesTableLib
+  UefiLib
+  UefiDriverEntryPoint
+  DebugLib
+  MicroLibC
+
+[Protocols]
+  gUefiThreadProtocolGuid
+  gUefiLKLProtocolGuid
+
+[Depex]
+  gUefiThreadProtocolGuid

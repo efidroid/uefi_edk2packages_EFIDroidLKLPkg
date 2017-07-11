@@ -1,0 +1,41 @@
+[Defines]
+  INF_VERSION     = 0x00010006
+  BASE_NAME       = UEFIThreads
+  FILE_GUID       = b1f55183-90d8-49bc-9b44-19339f11cc1e
+  MODULE_TYPE     = DXE_DRIVER
+  VERSION_STRING  = 0.1
+  ENTRY_POINT     = UEFIThreadsEntry
+
+[Sources]
+  UEFIThreads.c
+  thread.c
+  event.c
+  mutex.c
+  semaphore.c
+  dpc.c
+
+[Sources.ARM]
+  Arm/getcontext.S
+  Arm/setcontext.S
+  Arm/swapcontext.S
+  Arm/makecontext.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  EFIDroidLKLPkg/UEFIThreads/UEFIThreads.dec
+
+[Packages.ARM]
+  ArmPkg/ArmPkg.dec
+
+[LibraryClasses]
+  DebugLib
+  UefiDriverEntryPoint
+  UefiLib
+  MemoryAllocationLib
+
+[Protocols]
+  gUefiThreadProtocolGuid
+
+[Depex]
+  TRUE

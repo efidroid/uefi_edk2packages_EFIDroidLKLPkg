@@ -1,0 +1,13 @@
+[Defines]
+  DEC_SPECIFICATION              = 0x00010005
+  PACKAGE_NAME                   = LKL
+  PACKAGE_GUID                   = a570c565-300b-4bf5-96fb-73ef9288ce1c
+  PACKAGE_VERSION                = 0.1
+
+[Includes]
+  Include
+  EFIDroidLKL/include
+  EFIDroidLKLPriv/lib
+
+[Protocols]
+  gUefiLKLProtocolGuid = { 0x9241b418, 0x9001, 0x474f, { 0x97, 0xbd, 0x51, 0xa7, 0xf1, 0xf1, 0xe7, 0xf4 } }
