@@ -89,7 +89,7 @@ EFI_STATUS mutex_acquire_timeout(mutex_t *m, THREAD_TIME_MS timeout)
     EFI_STATUS ret = EFI_SUCCESS;
     if (unlikely(++m->count > 1)) {
         ret = wait_queue_block(&m->wait, timeout);
-        if (unlikely(ret < EFI_SUCCESS)) {
+        if (unlikely(ret != EFI_SUCCESS)) {
             /* if the acquisition timed out, back out the acquire and exit */
             if (likely(ret == EFI_TIMEOUT)) {
                 /*

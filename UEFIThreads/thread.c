@@ -403,7 +403,7 @@ EFI_STATUS thread_detach_and_resume(thread_t *t)
 {
     EFI_STATUS err;
     err = thread_detach(t);
-    if (err < 0)
+    if (err != EFI_SUCCESS)
         return err;
     return thread_resume(t);
 }
@@ -423,7 +423,7 @@ EFI_STATUS thread_join(thread_t *t, INTN *retcode, THREAD_TIME_MS timeout)
     /* wait for the thread to die */
     if (t->state != THREAD_DEATH) {
         EFI_STATUS err = wait_queue_block(&t->retcode_wait_queue, timeout);
-        if (err < 0) {
+        if (err != EFI_SUCCESS) {
             THREAD_UNLOCK(state);
             return err;
         }
