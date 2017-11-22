@@ -1043,9 +1043,6 @@ STATIC VOID EFIAPI wait_queue_timeout_handler (
     spin_lock(&thread_lock);
     thread_unblock_from_wait_queue(thread, EFI_TIMEOUT);
     spin_unlock(&thread_lock);
-
-    gBS->CloseEvent(TimerContext->Event);
-    FreePool(TimerContext);
 }
 
 /**
@@ -1106,6 +1103,11 @@ EFI_STATUS wait_queue_block(wait_queue_t *wait, THREAD_TIME_MS timeout)
     if (timeout != INFINITE_TIME) {
         Status = gBS->SetTimer (TimerContext->Event, TimerCancel, 0);
         ASSERT_EFI_ERROR (Status);
+
+        Status = gBS->CloseEvent(TimerContext->Event);
+        ASSERT_EFI_ERROR (Status);
+
+        FreePool(TimerContext);
     }
 
     return current_thread->wait_queue_block_ret;
