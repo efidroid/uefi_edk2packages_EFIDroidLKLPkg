@@ -1090,7 +1090,7 @@ EFI_STATUS wait_queue_block(wait_queue_t *wait, THREAD_TIME_MS timeout)
         ASSERT(TimerContext);
         TimerContext->thread = current_thread;
 
-        Status = gBS->CreateEvent (EVT_TIMER | EVT_NOTIFY_SIGNAL, TPL_CALLBACK, wait_queue_timeout_handler, TimerContext, &TimerContext->Event);
+        Status = gBS->CreateEvent (EVT_TIMER | EVT_NOTIFY_SIGNAL, TPL_NOTIFY, wait_queue_timeout_handler, TimerContext, &TimerContext->Event);
         ASSERT_EFI_ERROR (Status);
 
         Status = gBS->SetTimer (TimerContext->Event, TimerRelative, MS2100N(timeout));
