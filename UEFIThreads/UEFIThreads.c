@@ -7,11 +7,13 @@
 #include "private/kernel/event.h"
 #include "private/kernel/mutex.h"
 #include "private/kernel/semaphore.h"
+#include "private/lib/cbuf.h"
 
 #define HANDLE_TO_THREAD(h) ((thread_t*)(h))
 #define HANDLE_TO_EVENT(h) ((event_t*)(h))
 #define HANDLE_TO_MUTEX(h) ((mutex_t*)(h))
 #define HANDLE_TO_SEMAPHORE(h) ((semaphore_t*)(h))
+#define HANDLE_TO_CBUF(h) ((cbuf_t*)(h))
 
 STATIC EFI_EVENT mTimerEvent;
 STATIC EFI_EVENT mTimerEventNotify;
@@ -230,6 +232,61 @@ STATIC VOID* TlsGet(UINTN key) {
   return tls_get(key);
 }
 
+
+STATIC EFI_STATUS CBufCreate(CBUF *pcbuf, UINTN len, VOID *buf) {
+  cbuf_t *cbuf = NULL;
+
+  cbuf = AllocatePool(sizeof(*cbuf));
+  if (cbuf==NULL) {
+    return EFI_OUT_OF_RESOURCES;
+  }
+
+  cbuf_initialize_etc(cbuf, len, buf);
+  *pcbuf = cbuf;
+
+  return EFI_SUCCESS;
+}
+
+STATIC VOID CBufDestroy(CBUF handle) {
+  cbuf_t *cbuf = HANDLE_TO_CBUF (handle);
+  FreePool(cbuf);
+}
+
+STATIC UINTN CBufRead(CBUF handle, VOID *buf, UINTN buflen, BOOLEAN block) {
+  cbuf_t *cbuf = HANDLE_TO_CBUF (handle);
+  return cbuf_read(cbuf, buf, buflen, block);
+}
+
+STATIC UINTN CBufPeek(CBUF handle, CBUF_IOVEC *regions, BOOLEAN block, THREAD_TIME_MS timeout) {
+  cbuf_t *cbuf = HANDLE_TO_CBUF (handle);
+  return cbuf_peek(cbuf, regions, block, timeout);
+}
+
+STATIC UINTN CBufWrite(CBUF handle, CONST VOID *buf, UINTN len, BOOLEAN canreschedule) {
+  cbuf_t *cbuf = HANDLE_TO_CBUF (handle);
+  return cbuf_write(cbuf, buf, len, canreschedule);
+}
+
+STATIC UINTN CBufSpaceAvailable(CBUF handle) {
+  cbuf_t *cbuf = HANDLE_TO_CBUF (handle);
+  return cbuf_space_avail(cbuf);
+}
+
+STATIC UINTN CBufSpaceUsed(CBUF handle) {
+  cbuf_t *cbuf = HANDLE_TO_CBUF (handle);
+  return cbuf_space_used(cbuf);
+}
+
+STATIC UINTN CBufSize(CBUF handle) {
+  cbuf_t *cbuf = HANDLE_TO_CBUF (handle);
+  return cbuf_size(cbuf);
+}
+
+STATIC VOID  CBufReset(CBUF handle) {
+  cbuf_t *cbuf = HANDLE_TO_CBUF (handle);
+  return cbuf_reset(cbuf);
+}
+
 STATIC UEFI_THREAD_PROTOCOL mThreads = {
   .ThreadSetName = ThreadSetName,
   .ThreadSetPriority = ThreadSetPriority,
@@ -274,6 +331,16 @@ STATIC UEFI_THREAD_PROTOCOL mThreads = {
   .TlsDelete = TlsDelete,
   .TlsSet = TlsSet,
   .TlsGet = TlsGet,
+
+  .CBufCreate = CBufCreate,
+  .CBufDestroy = CBufDestroy,
+  .CBufRead = CBufRead,
+  .CBufPeek = CBufPeek,
+  .CBufWrite = CBufWrite,
+  .CBufSpaceAvailable = CBufSpaceAvailable,
+  .CBufSpaceUsed = CBufSpaceUsed,
+  .CBufSize = CBufSize,
+  .CBufReset = CBufReset,
 };
 
 STATIC

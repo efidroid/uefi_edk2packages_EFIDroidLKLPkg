@@ -22,10 +22,16 @@ typedef UINTN THREAD_TIME_MS;
 
 typedef struct _UEFI_THREAD_PROTOCOL   UEFI_THREAD_PROTOCOL;
 
+typedef struct {
+    VOID *Base;
+    UINTN Length;
+} CBUF_IOVEC;
+
 typedef VOID *THREAD;
 typedef VOID *THREAD_EVENT;
 typedef VOID *SEMAPHORE;
 typedef VOID *MUTEX;
+typedef VOID *CBUF;
 typedef INTN (*THREAD_START_ROUTINE)(VOID *arg);
 
 typedef VOID       (EFIAPI *THREAD_SET_NAME)(CONST CHAR8 *name);
@@ -73,6 +79,16 @@ typedef EFI_STATUS (EFIAPI *TLS_DELETE)(UINTN key);
 typedef EFI_STATUS (EFIAPI *TLS_SET)(UINTN key, VOID *data);
 typedef VOID*      (EFIAPI *TLS_GET)(UINTN key);
 
+typedef EFI_STATUS (EFIAPI *CBUF_CREATE)(CBUF *pcbuf, UINTN len, VOID *buf);
+typedef VOID       (EFIAPI *CBUF_DESTROY)(CBUF mutex);
+typedef UINTN      (EFIAPI *CBUF_READ)(CBUF cbuf, VOID *buf, UINTN buflen, BOOLEAN block);
+typedef UINTN      (EFIAPI *CBUF_PEEK)(CBUF cbuf, CBUF_IOVEC *regions, BOOLEAN block, THREAD_TIME_MS timeout);
+typedef UINTN      (EFIAPI *CBUF_WRITE)(CBUF cbuf, CONST VOID *buf, UINTN len, BOOLEAN canreschedule);
+typedef UINTN      (EFIAPI *CBUF_SPACE_AVAILABLE)(CBUF cbuf);
+typedef UINTN      (EFIAPI *CBUF_SPACE_USED)(CBUF cbuf);
+typedef UINTN      (EFIAPI *CBUF_SIZE)(CBUF cbuf);
+typedef VOID       (EFIAPI *CBUF_RESET)(CBUF cbuf);
+
 struct _UEFI_THREAD_PROTOCOL {
   THREAD_SET_NAME           ThreadSetName;
   THREAD_SET_PRIORITY       ThreadSetPriority;
@@ -117,6 +133,16 @@ struct _UEFI_THREAD_PROTOCOL {
   TLS_DELETE                TlsDelete;
   TLS_SET                   TlsSet;
   TLS_GET                   TlsGet;
+
+  CBUF_CREATE               CBufCreate;
+  CBUF_DESTROY              CBufDestroy;
+  CBUF_READ                 CBufRead;
+  CBUF_PEEK                 CBufPeek;
+  CBUF_WRITE                CBufWrite;
+  CBUF_SPACE_AVAILABLE      CBufSpaceAvailable;
+  CBUF_SPACE_USED           CBufSpaceUsed;
+  CBUF_SIZE                 CBufSize;
+  CBUF_RESET                CBufReset;
 };
 
 extern EFI_GUID gUefiThreadProtocolGuid;

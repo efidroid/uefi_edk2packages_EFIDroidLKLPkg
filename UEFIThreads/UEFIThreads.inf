@@ -13,6 +13,7 @@
   mutex.c
   semaphore.c
   dpc.c
+  cbuf.c
 
 [Sources.ARM]
   Arm/getcontext.S
