@@ -49,13 +49,18 @@ enum thread_state {
     THREAD_DEATH,
 };
 
-typedef struct tls_entry {
+typedef struct {
   struct list_node node;
 
-  UINTN key;
-  VOID *data;
   TLS_DESTRUCTOR destructor;
-} tls_entry_t;
+} tls_item_t;
+
+typedef struct {
+    struct list_node node;
+
+    tls_item_t *tls;
+    VOID *data;
+} tls_value_t;
 
 #define THREAD_FLAG_DETACHED                  (1<<0)
 #define THREAD_FLAG_FREE_STACK                (1<<1)
@@ -101,7 +106,7 @@ typedef struct thread {
     struct wait_queue retcode_wait_queue;
 
     /* thread local storage */
-    struct list_node tls_list;
+    struct list_node tls_values;
 
     CHAR8 name[32];
 } thread_t;

@@ -70,7 +70,7 @@ STATIC thread_t _idle_thread;
 
 struct thread *_current_thread = NULL;
 
-STATIC UINTN tls_next_key = 1;
+STATIC struct list_node tls_items;
 
 /* local routines */
 STATIC VOID thread_resched(VOID);
@@ -128,87 +128,100 @@ STATIC VOID initial_thread_func(VOID)
     thread_exit(ret);
 }
 
-STATIC tls_entry_t * internal_tls_get(thread_t *t, UINTN key) {
-    tls_entry_t *tls_entry;
-    list_for_every_entry(&t->tls_list, tls_entry, tls_entry_t, node) {
-        if (tls_entry->key == key)
-            return tls_entry;
-    }
-
-    return NULL;
-}
-
 EFI_STATUS tls_create(UINTN *pkey, TLS_DESTRUCTOR destructor) {
     if (pkey==NULL)
         return EFI_INVALID_PARAMETER;
 
     THREAD_LOCK(state);
-    UINTN key = tls_next_key++;
+
+    tls_item_t *tls = AllocatePool(sizeof(tls_item_t));
+    if (tls == NULL) {
+        THREAD_UNLOCK(state);
+        return EFI_OUT_OF_RESOURCES;
+    }
+    tls->destructor = destructor;
+    list_add_tail(&tls_items, &tls->node);
 
     thread_t *t;
     list_for_every_entry(&thread_list, t, thread_t, thread_list_node) {
-        tls_entry_t *tls_entry = AllocatePool(sizeof(tls_entry_t));
-        if (tls_entry == NULL) {
-            THREAD_UNLOCK(state);
-            return EFI_OUT_OF_RESOURCES;
-        }
+        if (t->state == THREAD_DEATH)
+            continue;
 
-        tls_entry->key = key;
-        list_add_tail(&t->tls_list, &tls_entry->node);
-
-        tls_entry->data = NULL;
-        tls_entry->destructor = destructor;
+        tls_value_t *tlsval = AllocatePool(sizeof(tls_value_t));
+        ASSERT(tlsval);
+        tlsval->tls = tls;
+        tlsval->data = NULL;
+        list_add_tail(&t->tls_values, &tlsval->node);
     }
 
     THREAD_UNLOCK(state);
 
-    *pkey = key;
+    *pkey = (UINTN) tls;
 
     return EFI_SUCCESS;
 }
 
 EFI_STATUS tls_delete(UINTN key) {
     thread_t *t;
+    tls_value_t *tlsval;
+    tls_item_t *tls = (VOID*)key;
 
     THREAD_LOCK(state);
-    list_for_every_entry(&thread_list, t, thread_t, thread_list_node) {
-        tls_entry_t *tls_entry = internal_tls_get(t, key);
-        if (tls_entry == NULL) {
-            THREAD_UNLOCK(state);
-            return EFI_NOT_FOUND;
-        }
-        list_delete(&tls_entry->node);
 
-        if (tls_entry->data && tls_entry->destructor)
-            tls_entry->destructor(tls_entry->data);
-        FreePool(tls_entry);
+    list_for_every_entry(&thread_list, t, thread_t, thread_list_node) {
+        list_for_every_entry(&t->tls_values, tlsval, tls_value_t, node) {
+            if (tlsval->tls == tls) {
+                list_delete(&tlsval->node);
+                FreePool(tlsval);
+                break;
+            }
+        }
     }
+
+    FreePool(tls);
+
     THREAD_UNLOCK(state);
 
     return EFI_SUCCESS;
 }
 
 EFI_STATUS tls_set(UINTN key, VOID *data) {
+    EFI_STATUS Status = EFI_NOT_FOUND;
     thread_t *current_thread = get_current_thread();
+    tls_item_t *tls = (VOID*)key;
+    tls_value_t *tlsval;
 
-    tls_entry_t *tls_entry = internal_tls_get(current_thread, key);
-    if (tls_entry == NULL) {
-        return EFI_NOT_FOUND;
+    THREAD_LOCK(state);
+
+    list_for_every_entry(&current_thread->tls_values, tlsval, tls_value_t, node) {
+        if (tlsval->tls == tls) {
+            tlsval->data = data;
+            Status = EFI_SUCCESS;
+            break;
+        }
     }
-    tls_entry->data = data;
 
-    return EFI_SUCCESS;
+    THREAD_UNLOCK(state);
+    return Status;
 }
 
 VOID* tls_get(UINTN key) {
     thread_t *current_thread = get_current_thread();
+    VOID *value = NULL;
 
-    tls_entry_t *tls_entry = internal_tls_get(current_thread, key);
-    if (tls_entry == NULL) {
-        return NULL;
+    THREAD_LOCK(state);
+
+    tls_value_t *tlsval;
+    list_for_every_entry(&current_thread->tls_values, tlsval, tls_value_t, node) {
+        if (tlsval->tls == (VOID*)key) {
+            value = tlsval->data;
+            break;
+        }
     }
 
-    return tls_entry->data;
+    THREAD_UNLOCK(state);
+
+    return value;
 }
 
 /**
@@ -241,7 +254,6 @@ VOID* tls_get(UINTN key) {
 thread_t *thread_create_etc(thread_t *t, CONST CHAR8 *name, THREAD_START_ROUTINE entry, VOID *arg, INTN priority, VOID *stack, UINTN stack_size)
 {
     UINTN flags = 0;
-    tls_entry_t *tls_entry;
 
     if (!t) {
         t = AllocatePool(sizeof(thread_t));
@@ -260,6 +272,7 @@ thread_t *thread_create_etc(thread_t *t, CONST CHAR8 *name, THREAD_START_ROUTINE
     t->wait_queue_block_ret = EFI_SUCCESS;
     t->SpinlockThreadData.OldTpl = 0;
     t->SpinlockThreadData.OldTplIsValid = FALSE;
+    list_initialize(&t->tls_values);
     thread_set_curr_cpu(t, -1);
 
     t->retcode = 0;
@@ -298,19 +311,6 @@ thread_t *thread_create_etc(thread_t *t, CONST CHAR8 *name, THREAD_START_ROUTINE
     /* save whether or not we need to free the thread struct and/or stack */
     t->flags = flags;
 
-    /* inheirit thread local storage from the parent */
-    list_initialize(&t->tls_list);
-    thread_t *current_thread = get_current_thread();
-
-    list_for_every_entry(&current_thread->tls_list, tls_entry, tls_entry_t, node) {
-        tls_entry_t *new_tls_entry = AllocatePool(sizeof(tls_entry_t));
-        ASSERT(new_tls_entry);
-        CopyMem(new_tls_entry, tls_entry, sizeof(*new_tls_entry));
-        new_tls_entry->data = NULL;
-
-        list_add_tail(&t->tls_list, &new_tls_entry->node);
-    }
-
     // init context
     GetContext(&t->context);
 
@@ -319,6 +319,16 @@ thread_t *thread_create_etc(thread_t *t, CONST CHAR8 *name, THREAD_START_ROUTINE
 
     /* add it to the global thread list */
     THREAD_LOCK(state);
+
+    tls_item_t *tls;
+    list_for_every_entry(&tls_items, tls, tls_item_t, node) {
+        tls_value_t *tlsval = AllocatePool(sizeof(tls_value_t));
+        ASSERT(tlsval);
+        tlsval->tls = tls;
+        tlsval->data = NULL;
+        list_add_tail(&t->tls_values, &tlsval->node);
+    }
+
     list_add_head(&thread_list, &t->thread_list_node);
     THREAD_UNLOCK(state);
 
@@ -496,6 +506,22 @@ VOID thread_exit(INTN retcode)
 //  DEBUG((EFI_D_INFO, "thread_exit: current %p\n", current_thread));
 
     THREAD_LOCK(state);
+
+    while (!list_is_empty(&current_thread->tls_values)) {
+        tls_value_t *tlsval = list_peek_head_type(&current_thread->tls_values, tls_value_t, node);
+        tls_item_t *tls = tlsval->tls;
+
+        if (tlsval->data && tls->destructor) {
+            void *data = tlsval->data;
+            tlsval->data = NULL;
+            tls->destructor(data);
+        }
+
+        if (tlsval->data == NULL || !tls->destructor) {
+            list_delete(&tlsval->node);
+            FreePool(tlsval);
+        }
+    }
 
     /* enter the dead state */
     current_thread->state = THREAD_DEATH;
@@ -858,6 +884,9 @@ VOID thread_init_early(VOID)
     /* initialize the thread list */
     list_initialize(&thread_list);
 
+    /* initialize tls map */
+    list_initialize(&tls_items);
+
     /* create a thread to cover the current running state */
     thread_t *t = AllocatePool(sizeof(thread_t));
     init_thread_struct(t, "bootstrap");
@@ -866,13 +895,12 @@ VOID thread_init_early(VOID)
     t->priority = HIGHEST_PRIORITY;
     t->state = THREAD_RUNNING;
     t->flags = THREAD_FLAG_DETACHED;
+    list_initialize(&t->tls_values);
     thread_set_curr_cpu(t, 0);
     thread_set_pinned_cpu(t, 0);
     wait_queue_init(&t->retcode_wait_queue);
     list_add_head(&thread_list, &t->thread_list_node);
     set_current_thread(t);
-
-    list_initialize(&t->tls_list);
 }
 
 /**
@@ -993,9 +1021,9 @@ VOID dump_thread(thread_t *t)
     DEBUG((EFI_D_INFO, "\tentry %p, arg %p, flags 0x%x\n", t->entry, t->arg, t->flags));
     DEBUG((EFI_D_INFO, "\twait queue %p, wait queue ret %d\n", t->blocking_wait_queue, t->wait_queue_block_ret));
     DEBUG((EFI_D_INFO, "\ttls:"));
-    tls_entry_t *tls_entry;
-    list_for_every_entry(&t->tls_list, tls_entry, tls_entry_t, node) {
-        DEBUG((EFI_D_INFO, "%u: 0x%x", tls_entry->key, tls_entry->data));
+    tls_value_t *tlsval;
+    list_for_every_entry(&t->tls_values, tlsval, tls_value_t, node) {
+        DEBUG((EFI_D_INFO, "%p: %p", tlsval->tls, tlsval->data));
     }
     DEBUG((EFI_D_INFO, "\n"));
 }
