@@ -916,10 +916,9 @@ VOID thread_init(VOID)
 /**
  * @brief Change name of current thread
  */
-VOID thread_set_name(CONST CHAR8 *name)
+VOID thread_set_name(thread_t *t, CONST CHAR8 *name)
 {
-    thread_t *current_thread = get_current_thread();
-    AsciiStrCpyS(current_thread->name, sizeof(current_thread->name), name);
+    AsciiStrCpyS(t->name, sizeof(t->name), name);
 }
 
 /**

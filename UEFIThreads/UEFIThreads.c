@@ -17,8 +17,9 @@ STATIC EFI_EVENT mTimerEvent;
 STATIC EFI_EVENT mTimerEventNotify;
 STATIC volatile THREAD_TIME_MS mTicks = 0;
 
-STATIC VOID EFIAPI ThreadSetName(CONST CHAR8 *name) {
-  thread_set_name(name);
+STATIC VOID EFIAPI ThreadSetName(THREAD handle, CONST CHAR8 *name) {
+  thread_t *thread = HANDLE_TO_THREAD (handle);
+  thread_set_name(thread, name);
 }
 
 STATIC VOID EFIAPI ThreadSetPriority(INTN priority) {

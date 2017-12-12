@@ -28,7 +28,7 @@ typedef VOID *SEMAPHORE;
 typedef VOID *MUTEX;
 typedef INTN (*THREAD_START_ROUTINE)(VOID *arg);
 
-typedef VOID       (EFIAPI *THREAD_SET_NAME)(CONST CHAR8 *name);
+typedef VOID       (EFIAPI *THREAD_SET_NAME)(THREAD handle, CONST CHAR8 *name);
 typedef VOID       (EFIAPI *THREAD_SET_PRIORITY)(INTN priority);
 typedef EFI_STATUS (EFIAPI *THREAD_CREATE)(THREAD *pthread, CONST CHAR8 *name, THREAD_START_ROUTINE entry, VOID *arg, INTN priority, UINTN stack_size);
 typedef EFI_STATUS (EFIAPI *THREAD_RESUME)(THREAD t);

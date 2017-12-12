@@ -127,7 +127,7 @@ typedef struct thread {
 VOID thread_init_early(VOID);
 VOID thread_init(VOID);
 VOID thread_create_idle(VOID);
-VOID thread_set_name(CONST CHAR8 *name);
+VOID thread_set_name(thread_t *t, CONST CHAR8 *name);
 VOID thread_set_priority(INTN priority);
 thread_t *thread_create(CONST CHAR8 *name, THREAD_START_ROUTINE entry, VOID *arg, INTN priority, UINTN stack_size);
 thread_t *thread_create_etc(thread_t *t, CONST CHAR8 *name, THREAD_START_ROUTINE entry, VOID *arg, INTN priority, VOID *stack, UINTN stack_size);
