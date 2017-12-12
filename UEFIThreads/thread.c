@@ -670,7 +670,8 @@ VOID thread_resched(VOID)
     if (oldthread->flags & THREAD_FLAG_DEBUG_STACK_BOUNDS_CHECK) {
         ASSERT((THREAD_STACK_PADDING_SIZE % sizeof(UINT32)) == 0);
         UINT32 *s = (UINT32 *)oldthread->stack;
-        for (UINTN i = 0; i < THREAD_STACK_PADDING_SIZE / sizeof(UINT32); i++) {
+        UINTN i;
+        for (i = 0; i < THREAD_STACK_PADDING_SIZE / sizeof(UINT32); i++) {
             if (unlikely(s[i] != STACK_DEBUG_WORD)) {
                 /* NOTE: will probably blow the stack harder here, but hopefully enough
                  * state exists to at least get some sort of debugging done.
