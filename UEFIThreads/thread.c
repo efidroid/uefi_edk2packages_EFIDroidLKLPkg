@@ -1019,10 +1019,10 @@ VOID dump_thread(thread_t *t)
 #endif
     DEBUG((EFI_D_INFO, "\tentry %p, arg %p, flags 0x%x\n", t->entry, t->arg, t->flags));
     DEBUG((EFI_D_INFO, "\twait queue %p, wait queue ret %d\n", t->blocking_wait_queue, t->wait_queue_block_ret));
-    DEBUG((EFI_D_INFO, "\ttls:"));
+    DEBUG((EFI_D_INFO, "\ttls:\n"));
     tls_value_t *tlsval;
     list_for_every_entry(&t->tls_values, tlsval, tls_value_t, node) {
-        DEBUG((EFI_D_INFO, "%p: %p", tlsval->tls, tlsval->data));
+        DEBUG((EFI_D_INFO, "\t\t%p: %p\n", tlsval->tls, tlsval->data));
     }
     DEBUG((EFI_D_INFO, "\n"));
 }
