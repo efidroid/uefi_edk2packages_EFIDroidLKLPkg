@@ -87,7 +87,7 @@
   gEfiUnicodeCollationProtocolGuid      ## TO_START
   gEfiUnicodeCollation2ProtocolGuid     ## TO_START
 
-  gEfiPartitionNameProtocolGuid
+  gEfiPartitionInfoProtocolGuid
   gUefiLKLProtocolGuid
 
 [Pcd]

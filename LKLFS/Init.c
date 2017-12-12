@@ -174,16 +174,19 @@ LKLAllocateVolume (
   EFI_FILE_PROTOCOL *KeyFile = NULL;
   UINT64            KeyFileSize;
   UINT8             *Key = NULL;
-  EFI_PARTITION_NAME_PROTOCOL *PartitionName;
+  EFI_PARTITION_INFO_PROTOCOL *PartitionInfo;
 
-  PartitionName = NULL;
+  PartitionInfo = NULL;
   Status = gBS->HandleProtocol (
                   Handle,
-                  &gEfiPartitionNameProtocolGuid,
-                  (VOID **)&PartitionName
+                  &gEfiPartitionInfoProtocolGuid,
+                  (VOID **)&PartitionInfo
                   );
   if (!EFI_ERROR (Status)) {
-    if (!StrCmp(PartitionName->Name, L"android_expand")) {
+    if (PartitionInfo->Type==PARTITION_TYPE_GPT
+        && !StrCmp(PartitionInfo->Info.Gpt.PartitionName, L"android_expand")
+    )
+    {
       IsEncrypted = TRUE;
 
       // build path for key file

@@ -36,7 +36,7 @@ Revision History
 #include <Protocol/DiskIo2.h>
 #include <Protocol/SimpleFileSystem.h>
 #include <Protocol/UnicodeCollation.h>
-#include <Protocol/PartitionName.h>
+#include <Protocol/PartitionInfo.h>
 #include <Protocol/LKL.h>
 
 #include <Library/PcdLib.h>
