@@ -18,6 +18,10 @@ typedef struct {
 	EFI_EVENT event;
 	void (*fn)(void *);
 	void *arg;
+	THREAD_EVENT cond;
+	THREAD thread;
+
+	int request_stop;
 } ltimer_t;
 
 typedef BASE_LIBRARY_JUMP_BUFFER jmp_buf[1];
@@ -199,7 +203,25 @@ LTimerCallback (
 )
 {
 	ltimer_t *timer = Context;
-	timer->fn(timer->arg);
+	gThreads->EventSignal(timer->cond, 1);
+}
+
+static int timer_thread(void *pdata)
+{
+	ltimer_t *timer = pdata;
+
+	while (!timer->request_stop) {
+		gThreads->EventWait(timer->cond);
+		if (timer->request_stop)
+			break;
+
+		timer->fn(timer->arg);
+	}
+
+	gThreads->EventDestroy(timer->cond);
+	FreePool(timer);
+
+	return 0;
 }
 
 static void *timer_alloc(void (*fn)(void *), void *arg)
@@ -210,9 +232,14 @@ static void *timer_alloc(void (*fn)(void *), void *arg)
 	ASSERT(timer);
 	timer->fn = fn;
 	timer->arg = arg;
+	timer->request_stop = 0;
+	gThreads->EventCreate(&timer->cond, 0, THREAD_EVENT_FLAG_AUTOUNSIGNAL);
 
 	Status = gBS->CreateEvent (EVT_TIMER | EVT_NOTIFY_SIGNAL, TPL_CALLBACK, LTimerCallback, timer, &timer->event);
 	ASSERT_EFI_ERROR (Status);
+
+	Status = gThreads->ThreadCreate(&timer->thread, "lkl_timer", timer_thread, timer, DEFAULT_PRIORITY, 1*1024*1024);
+	gThreads->ThreadDetachAndResume(timer->thread);
 
 	return timer;
 }
@@ -234,6 +261,9 @@ static void timer_free(void *_timer)
 
 	Status = gBS->CloseEvent (timer->event);
 	ASSERT_EFI_ERROR (Status);
+
+	timer->request_stop = 1;
+	gThreads->EventSignal(timer->cond, 1);
 }
 
 static void lkl_panic(void)
