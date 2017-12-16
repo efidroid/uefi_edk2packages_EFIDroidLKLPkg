@@ -35,6 +35,7 @@
 #include <Library/UefiLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/BaseMemoryLib.h>
+#include <Library/ArmUnwind.h>
 #include "private/list.h"
 #include "private/kernel/thread.h"
 #include "private/kernel/dpc.h"
@@ -67,6 +68,9 @@ STATIC thread_t _idle_threads[SMP_MAX_CPUS];
 STATIC thread_t _idle_thread;
 #define idle_thread(cpu) (&_idle_thread)
 #endif
+
+STATIC
+void unwind_backtrace(void);
 
 struct thread *_current_thread = NULL;
 
@@ -568,6 +572,8 @@ STATIC VOID idle_thread_routine(VOID)
     }
 }
 
+extern volatile INTN InTimerCallback;
+
 STATIC thread_t *get_top_thread(INTN cpu)
 {
     thread_t *newthread;
@@ -593,6 +599,13 @@ STATIC thread_t *get_top_thread(INTN cpu)
 
         local_run_queue_bitmap &= ~(1<<next_queue);
     }
+
+    DEBUG((EFI_D_ERROR, "IDLE THREAD %d\n", InTimerCallback));
+    dump_all_threads();
+
+    DEBUG((EFI_D_ERROR, "CURRENT TRACE\n"));
+    unwind_backtrace();
+
     /* no threads to run, select the idle thread for this cpu */
     return idle_thread(cpu);
 }
@@ -998,6 +1011,83 @@ UINTN thread_stack_used(thread_t *t) {
     return 0;
 #endif
 }
+CHAR8 *
+GetImageName (
+  IN  UINTN  FaultAddress,
+  OUT UINTN  *ImageBase,
+  OUT UINTN  *PeCoffSizeOfHeaders
+  );
+
+STATIC
+void unwind_backtrace(void)
+{
+	struct stackframe frame;
+    CHAR8   *Pdb;
+    UINT32  ImageBase;
+    UINT32  PeCoffSizeOfHeader;
+
+	register unsigned long current_ip_reg asm ("ip");
+    register unsigned long current_stack_pointer asm ("sp");
+
+	frame.fp = (unsigned long)__builtin_frame_address(0);
+	frame.ip = current_ip_reg;
+	frame.sp = current_stack_pointer;
+	frame.lr = (unsigned long)__builtin_return_address(0);
+	frame.pc = (unsigned long)unwind_backtrace;
+
+    Pdb = GetImageName (frame.pc, &ImageBase, &PeCoffSizeOfHeader);
+    DEBUG((DEBUG_ERROR, "Currently in: %08x: %a at 0x%08x\n", frame.pc, Pdb, ImageBase));
+	while (1) {
+		int urc;
+		unsigned long where = frame.pc;
+
+		urc = unwind_frame(&frame);
+		if (urc < 0)
+			break;
+
+        Pdb = GetImageName (frame.pc, &ImageBase, &PeCoffSizeOfHeader);
+        DEBUG((DEBUG_ERROR, "\tFunction entered at [<%08x>] from [<%08x>]: %a at 0x%08x\n", where, frame.pc, Pdb, ImageBase));
+	}
+
+    DEBUG((DEBUG_ERROR, "DONE\n"));
+}
+
+STATIC
+void exception_unwind_stack(thread_t *t)
+{
+	struct stackframe frame;
+    CHAR8   *Pdb;
+    UINT32  ImageBase;
+    UINT32  PeCoffSizeOfHeader;
+
+	frame.ip = t->context.R12;
+	frame.sp = t->context.SP;
+	frame.lr = (unsigned long)t->context.LR;
+	frame.pc = (unsigned long)t->context.PC;
+	if (IS_THUMB(frame.ip)) {
+    	frame.fp = (unsigned long)t->context.R7;
+    }
+    else {
+    	frame.fp = (unsigned long)t->context.R11;
+    }
+
+    Pdb = GetImageName (frame.pc, &ImageBase, &PeCoffSizeOfHeader);
+    DEBUG((DEBUG_ERROR, "Currently in: %08x: %a at 0x%08x\n", frame.pc, Pdb, ImageBase));
+	while (1) {
+		int urc;
+		unsigned long where = frame.pc;
+
+		urc = unwind_frame(&frame);
+		if (urc < 0)
+			break;
+
+        Pdb = GetImageName (frame.pc, &ImageBase, &PeCoffSizeOfHeader);
+        DEBUG((DEBUG_ERROR, "\tFunction entered at [<%08x>] from [<%08x>]: %a at 0x%08x\n", where, frame.pc, Pdb, ImageBase));
+	}
+
+    DEBUG((DEBUG_ERROR, "DONE\n"));
+}
+
 /**
  * @brief  Dump debugging info about the specified thread.
  */
@@ -1026,6 +1116,8 @@ VOID dump_thread(thread_t *t)
         DEBUG((EFI_D_INFO, "\t\t%p: %p\n", tlsval->tls, tlsval->data));
     }
     DEBUG((EFI_D_INFO, "\n"));
+
+    exception_unwind_stack(t);
 }
 
 /**
@@ -1035,7 +1127,7 @@ VOID dump_all_threads(VOID)
 {
     thread_t *t;
 
-    THREAD_LOCK(state);
+    //THREAD_LOCK(state);
     list_for_every_entry(&thread_list, t, thread_t, thread_list_node) {
         if (t->magic != THREAD_MAGIC) {
             DEBUG((EFI_D_INFO, "bad magic on thread struct %p, aborting.\n", t));
@@ -1043,7 +1135,7 @@ VOID dump_all_threads(VOID)
         }
         dump_thread(t);
     }
-    THREAD_UNLOCK(state);
+    //THREAD_UNLOCK(state);
 }
 
 /** @} */
