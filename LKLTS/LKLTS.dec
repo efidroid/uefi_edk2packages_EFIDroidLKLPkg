@@ -1,0 +1,9 @@
+[Defines]
+  DEC_SPECIFICATION              = 0x00010005
+  PACKAGE_NAME                   = LKLTS
+  PACKAGE_GUID                   = E18F14F8-4AE4-452A-BA89-F33D94177BCB
+  PACKAGE_VERSION                = 0.1
+
+[Includes]
+  Include
+  EFIDroidModules/tslib/src

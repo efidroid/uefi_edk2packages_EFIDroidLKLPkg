@@ -1,0 +1,58 @@
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = LKLTS
+  FILE_GUID                      = 6d9afff7-8f0b-4106-b4e3-6b14d55ea6e3
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+
+  ENTRY_POINT                    = LKLTSEntryPoint
+  UNLOAD_IMAGE                   = LKLTSUnload
+
+[Sources]
+  LKLTS.h
+  LKLTS.c
+  tslib_compat.c
+
+  EFIDroidModules/tslib/src/ts_attach.c
+  EFIDroidModules/tslib/src/ts_close.c
+  EFIDroidModules/tslib/src/ts_error.c
+  EFIDroidModules/tslib/src/ts_fd.c
+  EFIDroidModules/tslib/src/ts_load_module.c
+  EFIDroidModules/tslib/src/ts_open.c
+  EFIDroidModules/tslib/src/ts_option.c
+  EFIDroidModules/tslib/src/ts_parse_vars.c
+  EFIDroidModules/tslib/src/ts_read.c
+  EFIDroidModules/tslib/src/ts_read_raw.c
+  EFIDroidModules/tslib/src/ts_strsep.c
+  EFIDroidModules/tslib/src/ts_version.c
+
+  EFIDroidModules/tslib/plugins/input-raw.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  EFIDroidPkg/EFIDroidPkg.dec
+  EFIDroidLKLPkg/LKLTS/LKLTS.dec
+  EFIDroidPkg/Library/MicroLibC/MicroLibC.dec
+  EFIDroidLKLPkg/LKL/LKL.dec
+  EFIDroidLKLPkg/UEFIThreads/UEFIThreads.dec
+
+[LibraryClasses]
+  UefiBootServicesTableLib
+  UefiLib
+  UefiDriverEntryPoint
+  DebugLib
+  MallocLib
+  MicroLibC
+  LKLBaseLib
+
+[Protocols]
+  gUefiThreadProtocolGuid
+  gUefiLKLProtocolGuid
+  gEfiAbsolutePointerProtocolGuid
+
+[Depex]
+  gUefiThreadProtocolGuid AND gUefiLKLProtocolGuid
+
+[BuildOptions]
+  GCC:*_*_*_CC_FLAGS     = -Wno-unused-variable
