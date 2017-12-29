@@ -1,4 +1,6 @@
 #include "LKLPrivate.h"
+#include <Library/UefiLib.h>
+#include <Library/UefiBootServicesTableLib.h>
 
 struct lkl_mutex {
 	int recursive;
@@ -302,6 +304,11 @@ static void jmp_buf_longjmp(struct lkl_jmp_buf *jmpb, int val)
 	LongJump(*((jmp_buf *)jmpb->buf), (val == 0) ? 1 : val);
 }
 
+static void lkl_idle_loop_callback(void) {
+	EfiGetCurrentTpl();
+	gThreads->ThreadYield();
+}
+
 struct lkl_host_operations lkl_host_ops = {
 	.panic = lkl_panic,
 	.thread_create = lkl_thread_create,
@@ -335,6 +342,7 @@ struct lkl_host_operations lkl_host_ops = {
 	.gettid = _gettid,
 	.jmp_buf_set = jmp_buf_set,
 	.jmp_buf_longjmp = jmp_buf_longjmp,
+	.idle_loop_callback = lkl_idle_loop_callback,
 };
 
 static int uefi_blk_get_capacity(struct lkl_disk disk, unsigned long long *res)
