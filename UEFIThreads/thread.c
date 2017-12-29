@@ -853,7 +853,7 @@ VOID thread_sleep(THREAD_TIME_MS delay)
     TimerContext = AllocatePool(sizeof(TIMER_CONTEXT));
     ASSERT(TimerContext);
     TimerContext->thread = current_thread;
-    Status = gBS->CreateEvent (EVT_TIMER | EVT_NOTIFY_SIGNAL, TPL_CALLBACK, thread_sleep_handler, TimerContext, &TimerContext->Event);
+    Status = gBS->CreateEvent (EVT_TIMER | EVT_NOTIFY_SIGNAL, TPL_NOTIFY, thread_sleep_handler, TimerContext, &TimerContext->Event);
     ASSERT_EFI_ERROR (Status);
 
     THREAD_LOCK(state);
