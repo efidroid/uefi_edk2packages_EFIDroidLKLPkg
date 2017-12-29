@@ -205,7 +205,7 @@ LTimerCallback (
 )
 {
 	ltimer_t *timer = Context;
-	gThreads->EventSignal(timer->cond, 1);
+	gThreads->EventSignal(timer->cond, 0);
 }
 
 static int timer_thread(void *pdata)
@@ -237,7 +237,7 @@ static void *timer_alloc(void (*fn)(void *), void *arg)
 	timer->request_stop = 0;
 	gThreads->EventCreate(&timer->cond, 0, THREAD_EVENT_FLAG_AUTOUNSIGNAL);
 
-	Status = gBS->CreateEvent (EVT_TIMER | EVT_NOTIFY_SIGNAL, TPL_CALLBACK, LTimerCallback, timer, &timer->event);
+	Status = gBS->CreateEvent (EVT_TIMER | EVT_NOTIFY_SIGNAL, TPL_NOTIFY, LTimerCallback, timer, &timer->event);
 	ASSERT_EFI_ERROR (Status);
 
 	Status = gThreads->ThreadCreate(&timer->thread, "lkl_timer", timer_thread, timer, DEFAULT_PRIORITY, 1*1024*1024);
