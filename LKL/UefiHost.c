@@ -251,6 +251,9 @@ static int timer_set_oneshot(void *_timer, unsigned long ns)
 	EFI_STATUS Status;
 	ltimer_t *timer = _timer;
 
+	Status = gBS->SetTimer (timer->event, TimerCancel, 0);
+	ASSERT_EFI_ERROR (Status);
+
 	Status = gBS->SetTimer (timer->event, TimerRelative, ns/100);
 	ASSERT_EFI_ERROR (Status);
 	return 0;
