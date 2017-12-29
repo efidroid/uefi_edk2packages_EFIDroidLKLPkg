@@ -36,6 +36,7 @@
 
 [Protocols]
   gUefiThreadProtocolGuid
+  gEfiTimestampProtocolGuid
 
 [Depex]
-  TRUE
+  gEfiTimestampProtocolGuid

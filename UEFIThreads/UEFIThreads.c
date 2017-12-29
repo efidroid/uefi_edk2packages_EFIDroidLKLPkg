@@ -2,6 +2,7 @@
 #include <Protocol/UefiThread.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/MemoryAllocationLib.h>
+#include <Protocol/Timestamp.h>
 
 #include "private/kernel/thread.h"
 #include "private/kernel/event.h"
@@ -14,8 +15,8 @@
 #define HANDLE_TO_SEMAPHORE(h) ((semaphore_t*)(h))
 
 STATIC EFI_EVENT mTimerEvent;
-STATIC EFI_EVENT mTimerEventNotify;
-STATIC volatile THREAD_TIME_MS mTicks = 0;
+STATIC EFI_TIMESTAMP_PROTOCOL *mTimestamp = NULL;
+STATIC EFI_TIMESTAMP_PROPERTIES mTimestampProperties;
 
 STATIC VOID EFIAPI ThreadSetName(THREAD handle, CONST CHAR8 *name) {
   thread_t *thread = HANDLE_TO_THREAD (handle);
@@ -211,8 +212,13 @@ STATIC BOOLEAN EFIAPI MutexHeld(MUTEX handle) {
 }
 
 STATIC UINT64 EFIAPI CurrentTimeNs(VOID) {
-  ASSERT(EfiGetCurrentTpl()<TPL_NOTIFY);
-  return mTicks*1000000ULL;
+  UINT64 ns;
+  UINT64 ticks = mTimestamp->GetTimestamp();
+  UINT64 freq = mTimestampProperties.Frequency;
+
+  ns = (ticks / freq) * 1000000000u;
+  ns += ((ticks % freq) *  1000000000u) / freq;
+  return ns;
 }
 
 STATIC EFI_STATUS TlsCreate(UINTN *pkey, TLS_DESTRUCTOR destructor) {
@@ -290,17 +296,6 @@ TimerCallback (
   }
 }
 
-STATIC
-VOID
-EFIAPI
-TimerCallbackNotify (
-    IN  EFI_EVENT   Event,
-    IN  VOID        *Context
-)
-{
-  mTicks += 10;
-}
-
 EFI_STATUS
 EFIAPI
 UEFIThreadsEntry (
@@ -326,12 +321,12 @@ UEFIThreadsEntry (
   ASSERT_EFI_ERROR (Status);
 
   //
-  // create TPL_NOTIFY timer
+  // get timestamp protocol
   //
-  Status = gBS->CreateEvent (EVT_TIMER | EVT_NOTIFY_SIGNAL, TPL_NOTIFY, TimerCallbackNotify, NULL, &mTimerEventNotify);
+  Status = gBS->LocateProtocol (&gEfiTimestampProtocolGuid, NULL, (VOID **)&mTimestamp);
   ASSERT_EFI_ERROR (Status);
 
-  Status = gBS->SetTimer (mTimerEventNotify, TimerPeriodic, MS2100N(10));
+  Status = mTimestamp->GetProperties(&mTimestampProperties);
   ASSERT_EFI_ERROR (Status);
 
   Status = gBS->InstallMultipleProtocolInterfaces(
