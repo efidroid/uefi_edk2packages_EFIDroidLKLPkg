@@ -136,12 +136,9 @@ EFI_STATUS event_wait_timeout(event_t *e, THREAD_TIME_MS timeout)
  */
 EFI_STATUS event_signal(event_t *e, BOOLEAN reschedule)
 {
-    SPINLOCK_STATE state;
-    BOOLEAN is_locked = spin_lock_held(&thread_lock);
     ASSERT(e->magic == EVENT_MAGIC);
 
-    if (!is_locked) 
-        spin_lock_irqsave(&thread_lock, state);
+    THREAD_LOCK(state);
 
     if (!e->signaled) {
         if (e->flags & THREAD_EVENT_FLAG_AUTOUNSIGNAL) {
@@ -161,8 +158,7 @@ EFI_STATUS event_signal(event_t *e, BOOLEAN reschedule)
         }
     }
 
-    if (!is_locked)
-        spin_unlock_irqrestore(&thread_lock, state);
+    THREAD_UNLOCK(state);
 
     return EFI_SUCCESS;
 }
