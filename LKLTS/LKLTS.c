@@ -141,7 +141,6 @@ STATIC INTN poll_thread_routine(VOID *arg) {
     }
   }
 
-  int inputcount = 0;
   for (;;) {
     if (raw)
       ret = ts_read_raw_mt(ts, samp_mt, max_slots, read_samples);
@@ -159,7 +158,6 @@ STATIC INTN poll_thread_routine(VOID *arg) {
         if (samp_mt[j][i].valid != 1)
           continue;
 
-        inputcount++;
         OldTpl = gBS->RaiseTPL (TPL_NOTIFY);
         MouseAbsolutePointerDev->State.CurrentX = samp_mt[j][i].x;
         MouseAbsolutePointerDev->State.CurrentY = samp_mt[j][i].y;
