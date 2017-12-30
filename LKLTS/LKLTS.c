@@ -159,6 +159,10 @@ STATIC INTN poll_thread_routine(VOID *arg) {
         if (samp_mt[j][i].valid != 1)
           continue;
 
+        // only use finger 0
+        if (i != 0)
+          continue;
+
         int pressure = samp_mt[j][i].pressure;
         int x = samp_mt[j][i].x;
         int y = samp_mt[j][i].y;
