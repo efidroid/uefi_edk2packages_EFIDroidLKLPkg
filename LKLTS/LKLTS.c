@@ -118,6 +118,7 @@ STATIC INTN poll_thread_routine(VOID *arg) {
   int ret, i, j;
   INT32 max_slots = 1;
   struct lkl_input_absinfo slot;
+  int m_x = 0, m_y = 0, m_pressure = 0;
 
   if (lkl_sys_ioctl(ts_fd(ts), LKL_EVIOCGABS(LKL_ABS_MT_SLOT), (unsigned long)&slot) < 0) {
     ts_close(ts);
@@ -158,12 +159,34 @@ STATIC INTN poll_thread_routine(VOID *arg) {
         if (samp_mt[j][i].valid != 1)
           continue;
 
+        int pressure = samp_mt[j][i].pressure;
+        int x = samp_mt[j][i].x;
+        int y = samp_mt[j][i].y;
+
+        // work around missing coordinates on mouse release
+        if (pressure == 0 && x == 0 && y == 0) {
+            x = m_x;
+            y = m_y;
+        }
+
+        if (!raw) {
+            //filtering: ignore movements of 2 pixels or less
+            int dx = x - m_x;
+            int dy = y - m_y;
+            if (dx*dx <= 4 && dy*dy <= 4 && (pressure>0) == (m_pressure>0))
+                continue;
+        }
+
         OldTpl = gBS->RaiseTPL (TPL_NOTIFY);
-        MouseAbsolutePointerDev->State.CurrentX = samp_mt[j][i].x;
-        MouseAbsolutePointerDev->State.CurrentY = samp_mt[j][i].y;
-        MouseAbsolutePointerDev->State.CurrentZ = samp_mt[j][i].pressure;
+        MouseAbsolutePointerDev->State.CurrentX = x;
+        MouseAbsolutePointerDev->State.CurrentY = y;
+        MouseAbsolutePointerDev->State.CurrentZ = pressure;
         MouseAbsolutePointerDev->StateChanged = TRUE;
         gBS->RestoreTPL (OldTpl);
+
+        m_x = x;
+        m_y = y;
+        m_pressure = pressure;
       }
     }
   }
