@@ -85,13 +85,13 @@ STATIC inline VOID arch_disable_ints(VOID)
     SPINLOCK_THREAD_DATA *t = get_current_spinlock_thread_data();
 
     ASSERT(t->OldTplIsValid==FALSE);
-    t->OldTpl = gBS->RaiseTPL(TPL_NOTIFY);
+    t->OldTpl = gBS->RaiseTPL(TPL_HIGH_LEVEL);
     t->OldTplIsValid = TRUE;
 }
 
 STATIC inline BOOLEAN arch_ints_disabled(VOID)
 {
-    return EfiGetCurrentTpl()>=TPL_NOTIFY;
+    return EfiGetCurrentTpl()>=TPL_HIGH_LEVEL;
 }
 
 STATIC inline UINTN arch_curr_cpu_num(VOID) {

@@ -132,14 +132,17 @@ EFI_STATUS tls_create(UINTN *pkey, TLS_DESTRUCTOR destructor) {
     if (pkey==NULL)
         return EFI_INVALID_PARAMETER;
 
-    THREAD_LOCK(state);
-
     tls_item_t *tls = AllocatePool(sizeof(tls_item_t));
     if (tls == NULL) {
-        THREAD_UNLOCK(state);
         return EFI_OUT_OF_RESOURCES;
     }
     tls->destructor = destructor;
+
+    THREAD_LOCK(state);
+    thread_t *current_thread = get_current_thread();
+    ASSERT(current_thread->SpinlockThreadData.OldTplIsValid);
+    ASSERT(current_thread->SpinlockThreadData.OldTpl<=TPL_CALLBACK);
+
     list_add_tail(&tls_items, &tls->node);
 
     thread_t *t;
@@ -147,7 +150,9 @@ EFI_STATUS tls_create(UINTN *pkey, TLS_DESTRUCTOR destructor) {
         if (t->state == THREAD_DEATH)
             continue;
 
+        gBS->RestoreTPL (TPL_NOTIFY);
         tls_value_t *tlsval = AllocatePool(sizeof(tls_value_t));
+        gBS->RaiseTPL (TPL_HIGH_LEVEL);
         ASSERT(tlsval);
         tlsval->tls = tls;
         tlsval->data = NULL;
@@ -167,12 +172,17 @@ EFI_STATUS tls_delete(UINTN key) {
     tls_item_t *tls = (VOID*)key;
 
     THREAD_LOCK(state);
+    thread_t *current_thread = get_current_thread();
+    ASSERT(current_thread->SpinlockThreadData.OldTplIsValid);
+    ASSERT(current_thread->SpinlockThreadData.OldTpl<=TPL_CALLBACK);
 
     list_for_every_entry(&thread_list, t, thread_t, thread_list_node) {
         list_for_every_entry(&t->tls_values, tlsval, tls_value_t, node) {
             if (tlsval->tls == tls) {
                 list_delete(&tlsval->node);
+                gBS->RestoreTPL (TPL_NOTIFY);
                 FreePool(tlsval);
+                gBS->RaiseTPL (TPL_HIGH_LEVEL);
                 break;
             }
         }
@@ -319,10 +329,15 @@ thread_t *thread_create_etc(thread_t *t, CONST CHAR8 *name, THREAD_START_ROUTINE
 
     /* add it to the global thread list */
     THREAD_LOCK(state);
+    thread_t *current_thread = get_current_thread();
+    ASSERT(current_thread->SpinlockThreadData.OldTplIsValid);
+    ASSERT(current_thread->SpinlockThreadData.OldTpl<=TPL_CALLBACK);
 
     tls_item_t *tls;
     list_for_every_entry(&tls_items, tls, tls_item_t, node) {
+        gBS->RestoreTPL (TPL_NOTIFY);
         tls_value_t *tlsval = AllocatePool(sizeof(tls_value_t));
+        gBS->RaiseTPL (TPL_HIGH_LEVEL);
         ASSERT(tlsval);
         tlsval->tls = tls;
         tlsval->data = NULL;
@@ -506,6 +521,8 @@ VOID thread_exit(INTN retcode)
 //  DEBUG((EFI_D_INFO, "thread_exit: current %p\n", current_thread));
 
     THREAD_LOCK(state);
+    ASSERT(current_thread->SpinlockThreadData.OldTplIsValid);
+    ASSERT(current_thread->SpinlockThreadData.OldTpl<=TPL_CALLBACK);
 
     while (!list_is_empty(&current_thread->tls_values)) {
         tls_value_t *tlsval = list_peek_head_type(&current_thread->tls_values, tls_value_t, node);
@@ -519,7 +536,9 @@ VOID thread_exit(INTN retcode)
 
         if (tlsval->data == NULL || !tls->destructor) {
             list_delete(&tlsval->node);
+            gBS->RestoreTPL (TPL_NOTIFY);
             FreePool(tlsval);
+            gBS->RaiseTPL (TPL_HIGH_LEVEL);
         }
     }
 
@@ -826,7 +845,6 @@ STATIC VOID EFIAPI thread_sleep_handler (
     THREAD_UNLOCK(state);
 
     gBS->CloseEvent(TimerContext->Event);
-    FreePool(TimerContext);
 }
 
 /**
@@ -841,7 +859,7 @@ STATIC VOID EFIAPI thread_sleep_handler (
  */
 VOID thread_sleep(THREAD_TIME_MS delay)
 {
-    TIMER_CONTEXT *TimerContext = NULL;
+    TIMER_CONTEXT TimerContext;
     EFI_STATUS Status;
 
     thread_t *current_thread = get_current_thread();
@@ -850,14 +868,17 @@ VOID thread_sleep(THREAD_TIME_MS delay)
     ASSERT(current_thread->state == THREAD_RUNNING);
     ASSERT(!thread_is_idle(current_thread));
 
-    TimerContext = AllocatePool(sizeof(TIMER_CONTEXT));
-    ASSERT(TimerContext);
-    TimerContext->thread = current_thread;
-    Status = gBS->CreateEvent (EVT_TIMER | EVT_NOTIFY_SIGNAL, TPL_NOTIFY, thread_sleep_handler, TimerContext, &TimerContext->Event);
+    TimerContext.thread = current_thread;
+    Status = gBS->CreateEvent (EVT_TIMER | EVT_NOTIFY_SIGNAL, TPL_NOTIFY, thread_sleep_handler, &TimerContext, &TimerContext.Event);
     ASSERT_EFI_ERROR (Status);
 
     THREAD_LOCK(state);
-    Status = gBS->SetTimer (TimerContext->Event, TimerRelative, MS2100N(delay));
+    ASSERT(current_thread->SpinlockThreadData.OldTplIsValid);
+    ASSERT(current_thread->SpinlockThreadData.OldTpl<=TPL_CALLBACK);
+
+    gBS->RestoreTPL (TPL_NOTIFY);
+    Status = gBS->SetTimer (TimerContext.Event, TimerRelative, MS2100N(delay));
+    gBS->RaiseTPL (TPL_HIGH_LEVEL);
     ASSERT_EFI_ERROR (Status);
     current_thread->state = THREAD_SLEEPING;
     thread_resched();
@@ -1093,7 +1114,7 @@ STATIC VOID EFIAPI wait_queue_timeout_handler (
  */
 EFI_STATUS wait_queue_block(wait_queue_t *wait, THREAD_TIME_MS timeout)
 {
-    TIMER_CONTEXT *TimerContext = NULL;
+    TIMER_CONTEXT TimerContext;
     EFI_STATUS Status;
 
     thread_t *current_thread = get_current_thread();
@@ -1102,6 +1123,8 @@ EFI_STATUS wait_queue_block(wait_queue_t *wait, THREAD_TIME_MS timeout)
     ASSERT(current_thread->state == THREAD_RUNNING);
     ASSERT(arch_ints_disabled());
     ASSERT(spin_lock_held(&thread_lock));
+    ASSERT(current_thread->SpinlockThreadData.OldTplIsValid);
+    ASSERT(current_thread->SpinlockThreadData.OldTpl<=TPL_CALLBACK);
 
     if (timeout == 0)
         return EFI_TIMEOUT;
@@ -1114,28 +1137,30 @@ EFI_STATUS wait_queue_block(wait_queue_t *wait, THREAD_TIME_MS timeout)
 
     /* if the timeout is nonzero or noninfinite, set a callback to yank us out of the queue */
     if (timeout != INFINITE_TIME) {
-        TimerContext = AllocatePool(sizeof(TIMER_CONTEXT));
-        ASSERT(TimerContext);
-        TimerContext->thread = current_thread;
+        TimerContext.thread = current_thread;
 
-        Status = gBS->CreateEvent (EVT_TIMER | EVT_NOTIFY_SIGNAL, TPL_NOTIFY, wait_queue_timeout_handler, TimerContext, &TimerContext->Event);
+        Status = gBS->CreateEvent (EVT_TIMER | EVT_NOTIFY_SIGNAL, TPL_NOTIFY, wait_queue_timeout_handler, &TimerContext, &TimerContext.Event);
         ASSERT_EFI_ERROR (Status);
 
-        Status = gBS->SetTimer (TimerContext->Event, TimerRelative, MS2100N(timeout));
+        gBS->RestoreTPL (TPL_NOTIFY);
+        Status = gBS->SetTimer (TimerContext.Event, TimerRelative, MS2100N(timeout));
         ASSERT_EFI_ERROR (Status);
+        gBS->RaiseTPL (TPL_HIGH_LEVEL);
     }
 
     thread_resched();
 
     /* we don't really know if the timer fired or not, so it's better safe to try to cancel it */
     if (timeout != INFINITE_TIME) {
-        Status = gBS->SetTimer (TimerContext->Event, TimerCancel, 0);
+        gBS->RestoreTPL (TPL_NOTIFY);
+
+        Status = gBS->SetTimer (TimerContext.Event, TimerCancel, 0);
         ASSERT_EFI_ERROR (Status);
 
-        Status = gBS->CloseEvent(TimerContext->Event);
+        Status = gBS->CloseEvent(TimerContext.Event);
         ASSERT_EFI_ERROR (Status);
 
-        FreePool(TimerContext);
+        gBS->RaiseTPL (TPL_HIGH_LEVEL);
     }
 
     return current_thread->wait_queue_block_ret;
